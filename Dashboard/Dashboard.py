@@ -6,7 +6,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from datetime import datetime
+import os
 
 # Konfigurasi halaman
 st.set_page_config(
@@ -15,15 +15,28 @@ st.set_page_config(
     layout="wide"
 )
 
-# Load data
+# Fungsi Load data dengan Dynamic Path
 @st.cache_data
 def load_data():
-    df = pd.read_csv('main_data.csv')
+    # Mengambil lokasi folder tempat script Dashboard.py berada
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(current_dir, 'main_data.csv')
+    
+    # Membaca file
+    df = pd.read_csv(file_path)
+    
+    # Konversi waktu
     df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'])
     df['order_month'] = df['order_purchase_timestamp'].dt.to_period('M').astype(str)
     return df
 
-df = load_data()
+# Menjalankan fungsi load data dengan error handling sederhana
+try:
+    df = load_data()
+except Exception as e:
+    st.error(f"Gagal memuat data: {e}")
+    st.info("Pastikan file 'main_data.csv' berada di dalam folder yang sama dengan 'Dashboard.py'")
+    st.stop()
 
 # Sidebar
 st.sidebar.header('🔍 Filter Data')
@@ -138,46 +151,64 @@ with col_right:
 col_left, col_right = st.columns(2)
 
 with col_left:
-    st.subheader('💳 Distribusi Metode Pembayaran')
+    st.subheader('💳 Metode Pembayaran')
     
     if not filtered_df.empty:
         payment_counts = filtered_df['payment_type'].value_counts()
         
-        fig, ax = plt.subplots(figsize=(10, 5))
-        colors = ['#66b3ff', '#ff9999', '#99ff99', '#ffcc99', '#c2c2f0']
+        # Perkecil figsize agar proporsional di dalam kolom
+        fig, ax = plt.subplots(figsize=(6, 6)) 
+        colors = sns.color_palette('pastel')[0:len(payment_counts)]
+        
+        # Gunakan pctdistance agar angka persentase tidak tabrakan dengan label
         ax.pie(
             payment_counts.values,
             labels=payment_counts.index,
             autopct='%1.1f%%',
             colors=colors,
-            startangle=90
+            startangle=140,
+            textprops={'fontsize': 10}
         )
-        ax.set_title('Proporsi Metode Pembayaran', fontsize=12)
-        st.pyplot(fig)
+        ax.set_title('Proporsi Metode Pembayaran', fontsize=14, pad=20)
+        
+        # Menghilangkan frame agar lebih clean
+        plt.tight_layout()
+        st.pyplot(fig, clear_figure=True)
     else:
-        st.info('Tidak ada data untuk ditampilkan.')
+        st.info('Tidak ada data pembayaran.')
 
 with col_right:
-    st.subheader('⭐ Distribusi Skor Ulasan')
+    st.subheader('⭐ Skor Ulasan')
     
     if not filtered_df.empty:
+        # Memastikan skor ulasan terurut 1-5
         review_counts = filtered_df['review_score'].value_counts().sort_index()
         
-        fig, ax = plt.subplots(figsize=(10, 5))
-        colors = ['#ff4d4d', '#ffa64d', '#ffff4d', '#a6ff4d', '#4dff4d']
+        fig, ax = plt.subplots(figsize=(6, 6))
+        # Menggunakan palette yang konsisten (Merah ke Hijau)
+        colors_review = ['#ff4d4d', '#ffa64d', '#ffff4d', '#a6ff4d', '#4dff4d']
+        
         sns.barplot(
             x=review_counts.index,
             y=review_counts.values,
-            palette=colors,
-            ax=ax
+            palette=colors_review,
+            ax=ax,
+            hue=review_counts.index, # Menghindari warning matplotlib terbaru
+            legend=False
         )
-        ax.set_title('Distribusi Skor Ulasan Pelanggan', fontsize=12)
-        ax.set_xlabel('Skor Ulasan')
-        ax.set_ylabel('Jumlah Ulasan')
-        ax.bar_label(ax.containers[0], padding=3)
-        st.pyplot(fig)
+        
+        ax.set_title('Distribusi Skor Ulasan', fontsize=14, pad=20)
+        ax.set_xlabel('Skor (1-5)', fontsize=10)
+        ax.set_ylabel('Jumlah', fontsize=10)
+        
+        # Tambahkan label angka di atas bar
+        ax.bar_label(ax.containers[0], padding=3, fontsize=10)
+        
+        # Optimasi layout
+        plt.tight_layout()
+        st.pyplot(fig, clear_figure=True)
     else:
-        st.info('Tidak ada data untuk ditampilkan.')
+        st.info('Tidak ada data ulasan.')
 
 # Row 3: Geospatial (Peta Sederhana) 
 st.subheader('📍 Sebaran Pelanggan per State')
